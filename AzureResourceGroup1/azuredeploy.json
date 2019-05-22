@@ -1,0 +1,1075 @@
+{
+    "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "LitwareSAType": {
+            "type": "string",
+            "defaultValue": "Standard_LRS",
+            "allowedValues": [
+                "Standard_LRS",
+                "Standard_ZRS",
+                "Standard_GRS",
+                "Standard_RAGRS",
+                "Premium_LRS"
+            ]
+        },
+        "_artifactsLocation": {
+            "type": "string",
+            "metadata": {
+                "description": "Auto-generated container in staging storage account to receive post-build staging folder upload"
+            }
+        },
+        "_artifactsLocationSasToken": {
+            "type": "securestring",
+            "metadata": {
+                "description": "Auto-generated token to access _artifactsLocation"
+            }
+        },
+        "AdminUserName": {
+            "type": "string",
+            "defaultValue": "LabAdmin",
+            "minLength": 1
+        },
+        "AdminPassword": {
+            "defaultValue": "5!MakeItReal#",
+            "type": "securestring"
+        },
+        "Litware-DC1Name": {
+            "type": "string",
+            "defaultValue": "Litware-DC1",
+            "minLength": 1
+        },
+        "Litware-DC1IP": {
+            "type": "string",
+            "defaultValue": "10.2.1.5",
+            "minLength": 1
+        },
+        "Litware-FS01Name": {
+            "type": "string",
+            "defaultValue": "Litware-FS01",
+            "minLength": 1
+        },
+        "JumpboxName": {
+            "type": "string",
+            "defaultValue": "JumpBox",
+            "minLength": 1
+        },
+        "Litware-WEB1Name": {
+            "type": "string",
+            "defaultValue": "Litware-WEB1",
+            "minLength": 1
+        },
+        "Litware-WEB2Name": {
+            "type": "string",
+            "defaultValue": "Litware-WEB2",
+            "minLength": 1
+        },
+        "Litware-WEB3Name": {
+            "type": "string",
+            "defaultValue": "Litware-WEB3",
+            "minLength": 1
+        },
+        "Litware-DB1Name": {
+            "type": "string",
+            "defaultValue": "Litware-DB1",
+            "minLength": 1
+        }
+    },
+    "variables": {
+        
+        "LitwareSAName": "[concat('litwaresa', uniqueString(resourceGroup().id))]",
+
+        
+        "vn-we-simirPrefix": "10.1.0.0/24",
+        "vn-we-simirSubnet1Name": "GatewaySubnet",
+        "vn-we-simirSubnet1Prefix": "10.1.0.240/28",
+        "vn-we-simirSubnet2Name": "vn-we-sn-VMs",
+        "vn-we-simirSubnet2Prefix": "10.1.0.0/27",
+        "DnsAddress": "10.1.0.10",
+
+        "dmz-we-simirPrefix": "172.16.0.0/24",
+        "dmz-we-simirSubnet1Name": "dmz-we-sn-VMs",
+        "dmz-we-simirSubnet1Prefix": "172.16.0.0/27",
+
+        
+        "WindowsOSVersion": "2012-R2-Datacenter",
+        "UbuntuOSVersion": "14.04.2-LTS",
+        "WindowsPublisher": "MicrosoftWindowsServer",
+        "WindowsImageOffer": "WindowsServer",
+        "LinuxPublisher": "Canonical",
+        "LinuxImageOffer": "UbuntuServer",
+        "VmSize": "Standard_D1_v2",
+        "StorageAccountContainerName": "vhds",
+
+        
+        "Litware-DC1OSDiskName": "Litware-DC1OSDisk",
+        "Litware-DC1VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+        "Litware-DC1SubnetRef": "[concat(variables('Litware-DC1VnetID'), '/subnets/', variables('vn-we-simirSubnet2Name'))]",
+        "Litware-DC1NicName": "[concat(parameters('Litware-DC1Name'), 'NetworkInterface')]",
+        "Litware-DC1IpAddress": "10.1.0.10",
+        "Litware-DC1ArchiveFileName": "DSC_Litware-DC1.zip",
+        "Litware-DC1PIPName": "Litware-DC1PIP",
+        "Litware-DC1PIPDnsName": "[concat('litware-dc1', uniqueString(resourceGroup().id))]",
+
+        
+        "Litware-FS01OSDiskName": "Litware-FS01OSDisk",
+        "Litware-FS01VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+        "Litware-FS01SubnetRef": "[concat(variables('Litware-FS01VnetID'), '/subnets/', variables('vn-we-simirSubnet2Name'))]",
+        "Litware-FS01NicName": "[concat(parameters('Litware-FS01Name'), 'NetworkInterface')]",
+        "Litware-FS01IpAddress": "10.1.0.11",
+        "Litware-FS01PIPName": "Litware-FS01PIP",
+        "Litware-FS01ArchiveFileName": "DSC_Litware-FS01.zip",
+        "Litware-FS01PIPDnsName": "[concat('litware-fs01', uniqueString(resourceGroup().id))]",
+
+        
+        "JumpboxOSDiskName": "JumpboxOSDisk",
+        "JumpboxVnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+        "JumpboxSubnetRef": "[concat(variables('JumpboxVnetID'), '/subnets/', variables('vn-we-simirSubnet2Name'))]",
+        "JumpboxNicName": "[concat(parameters('JumpboxName'), 'NetworkInterface')]",
+        "JumpbocPIPName": "JumpbocPIP",
+        "JumpboxIpAddress": "10.1.0.8",
+        "JumpbocPIPDnsName": "[concat('jumpbox', uniqueString(resourceGroup().id))]",
+
+        
+        "Litware-WEB1OSDiskName": "Litware-WEB1OSDisk",
+        "Litware-WEB1VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+        "Litware-WEB1SubnetRef": "[concat(variables('Litware-WEB1VnetID'), '/subnets/', variables('vn-we-simirSubnet2Name'))]",
+        "Litware-WEB1NicName": "[concat(parameters('Litware-WEB1Name'), 'NetworkInterface')]",
+        "Litware-WEB1PIPName": "Litware-WEB1PIP",
+        "Litware-TCArchiveFileName": "DSC_Litware-TC1.zip",
+        "Litware-WEB1IpAddress": "10.1.0.12",
+        "Litware-WEB1PIPDnsName": "[concat('litware-web1', uniqueString(resourceGroup().id))]",
+
+        
+        "Litware-WEB2OSDiskName": "Litware-WEB2OSDisk",
+        "Litware-WEB2VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+        "Litware-WEB2SubnetRef": "[concat(variables('Litware-WEB2VnetID'), '/subnets/', variables('vn-we-simirSubnet2Name'))]",
+        "Litware-WEB2NicName": "[concat(parameters('Litware-WEB2Name'), 'NetworkInterface')]",
+        "Litware-WEB2PIPName": "Litware-WEB2PIP",
+        "Litware-WEB2IpAddress": "10.1.0.14",
+        "Litware-WEB2PIPDnsName": "[concat('litware-web2', uniqueString(resourceGroup().id))]",
+
+        
+        "Litware-WEB3OSDiskName": "Litware-WEB3OSDisk",
+        "Litware-WEB3VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'dmz-we-simir')]",
+        "Litware-WEB3SubnetRef": "[concat(variables('Litware-WEB3VnetID'), '/subnets/', variables('dmz-we-simirSubnet1Name'))]",
+        "Litware-WEB3NicName": "[concat(parameters('Litware-WEB3Name'), 'NetworkInterface')]",
+        "Litware-WEB3PIPName": "Litware-WEB3PIP",
+        "Litware-DMZ1ArchiveFileName": "DSC_Litware-DMZ1.zip",
+        "Litware-WEB3IpAddress": "172.16.0.11",
+        "Litware-WEB3PIPDnsName": "[concat('litware-web3', uniqueString(resourceGroup().id))]",
+
+        
+        "Litware-DB1OSDiskName": "Litware-DB1OSDisk",
+        "Litware-DB1VnetID": "[resourceId('Microsoft.Network/virtualNetworks', 'dmz-we-simir')]",
+        "Litware-DB1SubnetRef": "[concat(variables('Litware-DB1VnetID'), '/subnets/', variables('dmz-we-simirSubnet1Name'))]",
+        "Litware-DB1NicName": "[concat(parameters('Litware-DB1Name'), 'NetworkInterface')]",
+        "Litware-DB1PIPName": "Litware-DB1PIP",
+        "Litware-DB1ArchiveFileName": "DSC_Litware-DB1.zip",
+        "Litware-DB1IpAddress": "172.16.0.10",
+        "Litware-DB1PIPDnsName": "[concat('litware-db1', uniqueString(resourceGroup().id))]"
+    },
+    "resources": [
+        
+        {
+            "name": "[variables('LitwareSAName')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-01-01",
+            "sku": {
+                "name": "[parameters('LitwareSAType')]"
+            },
+            "dependsOn": [],
+            "tags": {
+                "displayName": "LitwareSA"
+            },
+            "kind": "Storage"
+        },
+
+       
+        {
+            "name": "vn-we-simir",
+            "type": "Microsoft.Network/virtualNetworks",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "vn-we-simir"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('vn-we-simirPrefix')]"
+                    ]
+                },
+                "dhcpOptions": {
+                    "dnsServers": [
+                        "[variables('DnsAddress')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('vn-we-simirSubnet1Name')]",
+                        "properties": {
+                            "addressPrefix": "[variables('vn-we-simirSubnet1Prefix')]"
+                        }
+                    },
+                    {
+                        "name": "[variables('vn-we-simirSubnet2Name')]",
+                        "properties": {
+                            "addressPrefix": "[variables('vn-we-simirSubnet2Prefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "dmz-we-simir",
+            "type": "Microsoft.Network/virtualNetworks",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "dmz-we-simir"
+            },
+            "properties": {
+                "addressSpace": {
+                    "addressPrefixes": [
+                        "[variables('dmz-we-simirPrefix')]"
+                    ]
+                },
+                "subnets": [
+                    {
+                        "name": "[variables('dmz-we-simirSubnet1Name')]",
+                        "properties": {
+                            "addressPrefix": "[variables('dmz-we-simirSubnet1Prefix')]"
+                        }
+                    }
+                ]
+            }
+        },
+
+        
+        {
+            "name": "[variables('Litware-DC1NicName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-DC1PIPName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-DC1Nic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('Litware-DC1IpAddress')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('Litware-DC1SubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-DC1PIPName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('Litware-DC1Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-DC1NicName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-DC1"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('VmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('Litware-DC1Name')]",
+                    "adminUsername": "[parameters('AdminUserName')]",
+                    "adminPassword": "[parameters('AdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('WindowsPublisher')]",
+                        "offer": "[variables('WindowsImageOffer')]",
+                        "sku": "[variables('WindowsOSVersion')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "Litware-DC1OSDisk",
+                        "vhd": {
+                            "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName')), '2016-01-01').primaryEndpoints.blob, variables('StorageAccountContainerName'), '/', variables('Litware-DC1OSDiskName'), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-DC1NicName'))]"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "name": "Microsoft.Powershell.DSC",
+                    "type": "extensions",
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2016-03-30",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Compute/virtualMachines', parameters('Litware-DC1Name'))]"
+                    ],
+                    "tags": {
+                        "displayName": "Litware-DC1"
+                    },
+                    "properties": {
+                        "publisher": "Microsoft.Powershell",
+                        "type": "DSC",
+                        "typeHandlerVersion": "2.9",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "configuration": {
+                                "url": "[concat(parameters('_artifactsLocation'), '/', variables('Litware-DC1ArchiveFileName'))]",
+                                "script": "DSC_Litware-DC1.ps1",
+                                "function": "Litware-DC1"
+                            },
+                            "configurationArguments": {
+                                "prmTeam": "1"
+                            }
+                        },
+                        "protectedSettings": {
+                            "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[variables('Litware-DC1PIPName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "Litware-DC1PIP"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('Litware-DC1PIPDnsName')]"
+                }
+            }
+        },
+
+        
+        {
+            "name": "[variables('Litware-FS01NicName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-FS01PIPName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-FS01Nic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('Litware-FS01IpAddress')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('Litware-FS01SubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-FS01PIPName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('Litware-FS01Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-FS01NicName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-FS01"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('VmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('Litware-FS01Name')]",
+                    "adminUsername": "[parameters('AdminUserName')]",
+                    "adminPassword": "[parameters('AdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('WindowsPublisher')]",
+                        "offer": "[variables('WindowsImageOffer')]",
+                        "sku": "[variables('WindowsOSVersion')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "Litware-FS01OSDisk",
+                        "vhd": {
+                            "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName')), '2016-01-01').primaryEndpoints.blob, variables('StorageAccountContainerName'), '/', variables('Litware-FS01OSDiskName'), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-FS01NicName'))]"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "name": "Microsoft.Powershell.DSC",
+                    "type": "extensions",
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2016-03-30",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Compute/virtualMachines', parameters('Litware-FS01Name'))]"
+                    ],
+                    "tags": {
+                        "displayName": "Litware-FS01"
+                    },
+                    "properties": {
+                        "publisher": "Microsoft.Powershell",
+                        "type": "DSC",
+                        "typeHandlerVersion": "2.9",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "configuration": {
+                                "url": "[concat(parameters('_artifactsLocation'), '/', variables('Litware-FS01ArchiveFileName'))]",
+                                "script": "DSC_Litware-FS01.ps1",
+                                "function": "Litware-FS01"
+                            },
+                            "configurationArguments": {
+                                "prmTeam": "1"
+                            }
+                        },
+                        "protectedSettings": {
+                            "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[variables('Litware-FS01PIPName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "Litware-FS01PIP"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('Litware-FS01PIPDnsName')]"
+                }
+            }
+        },
+
+        
+        {
+            "name": "[variables('JumpboxNicName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('JumpbocPIPName'))]"
+            ],
+            "tags": {
+                "displayName": "JumpboxNic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('JumpboxIpAddress')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('JumpboxSubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('JumpbocPIPName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('JumpboxName')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('JumpboxNicName'))]"
+            ],
+            "tags": {
+                "displayName": "Jumpbox"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('VmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('JumpboxName')]",
+                    "adminUsername": "[parameters('AdminUserName')]",
+                    "adminPassword": "[parameters('AdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('WindowsPublisher')]",
+                        "offer": "[variables('WindowsImageOffer')]",
+                        "sku": "[variables('WindowsOSVersion')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "JumpboxOSDisk",
+                        "vhd": {
+                            "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName')), '2016-01-01').primaryEndpoints.blob, variables('StorageAccountContainerName'), '/', variables('JumpboxOSDiskName'), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('JumpboxNicName'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "[variables('JumpbocPIPName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "JumpbocPIP"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('JumpbocPIPDnsName')]"
+                }
+            }
+        },
+
+        
+        {
+            "name": "[variables('Litware-WEB1NicName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-WEB1PIPName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-WEB1Nic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('Litware-WEB1IpAddress')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('Litware-WEB1SubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-WEB1PIPName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('Litware-WEB1Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-WEB1NicName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-WEB1"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('VmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('Litware-WEB1Name')]",
+                    "adminUsername": "[parameters('AdminUserName')]",
+                    "adminPassword": "[parameters('AdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('WindowsPublisher')]",
+                        "offer": "[variables('WindowsImageOffer')]",
+                        "sku": "[variables('WindowsOSVersion')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "Litware-WEB1OSDisk",
+                        "vhd": {
+                            "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName')), '2016-01-01').primaryEndpoints.blob, variables('StorageAccountContainerName'), '/', variables('Litware-WEB1OSDiskName'), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-WEB1NicName'))]"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "name": "Microsoft.Powershell.DSC",
+                    "type": "extensions",
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2016-03-30",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Compute/virtualMachines', parameters('Litware-WEB1Name'))]"
+                    ],
+                    "tags": {
+                        "displayName": "Litware-TC"
+                    },
+                    "properties": {
+                        "publisher": "Microsoft.Powershell",
+                        "type": "DSC",
+                        "typeHandlerVersion": "2.9",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "configuration": {
+                                "url": "[concat(parameters('_artifactsLocation'), '/', variables('Litware-TCArchiveFileName'))]",
+                                "script": "DSC_Litware-TC1.ps1",
+                                "function": "Litware-TC1"
+                            },
+                            "configurationArguments": {
+                                "prmTeam": "1"
+                            }
+                        },
+                        "protectedSettings": {
+                            "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[variables('Litware-WEB1PIPName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "Litware-WEB1PIP"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('Litware-WEB1PIPDnsName')]"
+                }
+            }
+        },
+
+        
+        {
+            "name": "[variables('Litware-WEB2NicName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'vn-we-simir')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-WEB2PIPName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-WEB2Nic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('Litware-WEB2IpAddress')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('Litware-WEB2SubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-WEB2PIPName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('Litware-WEB2Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-WEB2NicName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-WEB2"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('VmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('Litware-WEB2Name')]",
+                    "adminUsername": "[parameters('AdminUserName')]",
+                    "adminPassword": "[parameters('AdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('LinuxPublisher')]",
+                        "offer": "[variables('LinuxImageOffer')]",
+                        "sku": "[variables('UbuntuOSVersion')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "Litware-WEB2OSDisk",
+                        "vhd": {
+                            "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName')), '2016-01-01').primaryEndpoints.blob, variables('StorageAccountContainerName'), '/', variables('Litware-WEB2OSDiskName'), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-WEB2NicName'))]"
+                        }
+                    ]
+                }
+            }
+        },
+        {
+            "name": "[variables('Litware-WEB2PIPName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "Litware-WEB2PIP"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('Litware-WEB2PIPDnsName')]"
+                }
+            }
+        },
+
+        
+        {
+            "name": "[variables('Litware-WEB3NicName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'dmz-we-simir')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-WEB3PIPName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-WEB3Nic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('Litware-WEB3IpAddress')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('Litware-WEB3SubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-WEB3PIPName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('Litware-WEB3Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-WEB3NicName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-WEB3"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('VmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('Litware-WEB3Name')]",
+                    "adminUsername": "[parameters('AdminUserName')]",
+                    "adminPassword": "[parameters('AdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('WindowsPublisher')]",
+                        "offer": "[variables('WindowsImageOffer')]",
+                        "sku": "[variables('WindowsOSVersion')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "Litware-WEB3OSDisk",
+                        "vhd": {
+                            "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName')), '2016-01-01').primaryEndpoints.blob, variables('StorageAccountContainerName'), '/', variables('Litware-WEB3OSDiskName'), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-WEB3NicName'))]"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "name": "Microsoft.Powershell.DSC",
+                    "type": "extensions",
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2016-03-30",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Compute/virtualMachines', parameters('Litware-WEB3Name'))]"
+                    ],
+                    "tags": {
+                        "displayName": "Litware-DMZ1"
+                    },
+                    "properties": {
+                        "publisher": "Microsoft.Powershell",
+                        "type": "DSC",
+                        "typeHandlerVersion": "2.9",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "configuration": {
+                                "url": "[concat(parameters('_artifactsLocation'), '/', variables('Litware-DMZ1ArchiveFileName'))]",
+                                "script": "DSC_Litware-DMZ1.ps1",
+                                "function": "Litware-DMZ1"
+                            },
+                            "configurationArguments": {
+                                "prmTeam": "1",
+                                "prmThumbprint": "7BF85E8DBFBE818B95FE8254EFBDCB9E4B404092"
+                            }
+                        },
+                        "protectedSettings": {
+                            "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[variables('Litware-WEB3PIPName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "Litware-WEB3PIP"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('Litware-WEB3PIPDnsName')]"
+                }
+            }
+        },
+        {
+            "name": "[variables('Litware-DB1NicName')]",
+            "type": "Microsoft.Network/networkInterfaces",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [
+                "[resourceId('Microsoft.Network/virtualNetworks', 'dmz-we-simir')]",
+                "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-DB1PIPName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-DB1Nic"
+            },
+            "properties": {
+                "ipConfigurations": [
+                    {
+                        "name": "ipconfig1",
+                        "properties": {
+                            "privateIPAddress": "[variables('Litware-DB1IpAddress')]",
+                            "privateIPAllocationMethod": "Static",
+                            "subnet": {
+                                "id": "[variables('Litware-DB1SubnetRef')]"
+                            },
+                            "publicIPAddress": {
+                                "id": "[resourceId('Microsoft.Network/publicIPAddresses', variables('Litware-DB1PIPName'))]"
+                            }
+                        }
+                    }
+                ]
+            }
+        },
+        {
+            "name": "[parameters('Litware-DB1Name')]",
+            "type": "Microsoft.Compute/virtualMachines",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [
+                "[resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName'))]",
+                "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-DB1NicName'))]"
+            ],
+            "tags": {
+                "displayName": "Litware-DB1"
+            },
+            "properties": {
+                "hardwareProfile": {
+                    "vmSize": "[variables('VmSize')]"
+                },
+                "osProfile": {
+                    "computerName": "[parameters('Litware-DB1Name')]",
+                    "adminUsername": "[parameters('AdminUserName')]",
+                    "adminPassword": "[parameters('AdminPassword')]"
+                },
+                "storageProfile": {
+                    "imageReference": {
+                        "publisher": "[variables('WindowsPublisher')]",
+                        "offer": "[variables('WindowsImageOffer')]",
+                        "sku": "[variables('WindowsOSVersion')]",
+                        "version": "latest"
+                    },
+                    "osDisk": {
+                        "name": "Litware-DB1OSDisk",
+                        "vhd": {
+                            "uri": "[concat(reference(resourceId('Microsoft.Storage/storageAccounts', variables('LitwareSAName')), '2016-01-01').primaryEndpoints.blob, variables('StorageAccountContainerName'), '/', variables('Litware-DB1OSDiskName'), '.vhd')]"
+                        },
+                        "caching": "ReadWrite",
+                        "createOption": "FromImage"
+                    }
+                },
+                "networkProfile": {
+                    "networkInterfaces": [
+                        {
+                            "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('Litware-DB1NicName'))]"
+                        }
+                    ]
+                }
+            },
+            "resources": [
+                {
+                    "name": "Microsoft.Powershell.DSC",
+                    "type": "extensions",
+                    "location": "[resourceGroup().location]",
+                    "apiVersion": "2016-03-30",
+                    "dependsOn": [
+                        "[resourceId('Microsoft.Compute/virtualMachines', parameters('Litware-DB1Name'))]"
+                    ],
+                    "tags": {
+                        "displayName": "Litware-DB1"
+                    },
+                    "properties": {
+                        "publisher": "Microsoft.Powershell",
+                        "type": "DSC",
+                        "typeHandlerVersion": "2.9",
+                        "autoUpgradeMinorVersion": true,
+                        "settings": {
+                            "configuration": {
+                                "url": "[concat(parameters('_artifactsLocation'), '/', variables('Litware-DB1ArchiveFileName'))]",
+                                "script": "DSC_Litware-DB1.ps1",
+                                "function": "Litware-DB1"
+                            },
+                            "configurationArguments": {
+                                "prmTeam": "1"
+                            }
+                        },
+                        "protectedSettings": {
+                            "configurationUrlSasToken": "[parameters('_artifactsLocationSasToken')]"
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "[variables('Litware-DB1PIPName')]",
+            "type": "Microsoft.Network/publicIPAddresses",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2016-03-30",
+            "dependsOn": [],
+            "tags": {
+                "displayName": "Litware-DB1PIP"
+            },
+            "properties": {
+                "publicIPAllocationMethod": "Dynamic",
+                "dnsSettings": {
+                    "domainNameLabel": "[variables('Litware-DB1PIPDnsName')]"
+                }
+            }
+        }
+    ],
+    "outputs": {}
+}
